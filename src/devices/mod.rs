@@ -110,14 +110,17 @@ pub fn connect_compatible_device() -> Result<Box<dyn Device>, DeviceError> {
     // #[cfg(target_os = "windows")]
     {
         let mut device = None;
-        for state in states {
+        let total = states.len();
+        for (idx, state) in states.into_iter().enumerate() {
             println!(
-                "Try to connecting to {}",
+                "Try to connecting to {} (interface {}/{})",
                 state
                     .device_properties
                     .device_name
                     .clone()
-                    .unwrap_or("???".to_string())
+                    .unwrap_or("???".to_string()),
+                idx + 1,
+                total
             );
             let entry = DEVICE_REGISTER
                 .iter()
