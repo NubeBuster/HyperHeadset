@@ -79,35 +79,40 @@ pub fn connect_compatible_device() -> Result<Box<dyn Device>, DeviceError> {
     let states = DeviceState::new(&all_product_ids, &all_vendor_ids)?;
     debug_println!("Found device selecting handler");
 
-    // On Linux and MacOS we can just take the first
-    // #[cfg(not(target_os = "windows"))]
-    // {
-    //     let state = states
-    //         .into_iter()
-    //         .next()
-    //         .ok_or(DeviceError::NoDeviceFound())?;
-    //     println!(
-    //         "Connecting to {}",
-    //         state
-    //             .device_properties
-    //             .device_name
-    //             .clone()
-    //             .unwrap_or("???".to_string())
-    //     );
-    //     let entry = DEVICE_REGISTER
-    //         .iter()
-    //         .find(|e| {
-    //             e.vendor_ids.contains(&state.device_properties.vendor_id)
-    //                 && e.product_ids.contains(&state.device_properties.product_id)
-    //         })
-    //         .ok_or(DeviceError::NoDeviceFound())?;
-    //
-    //     let mut device = (entry.factory)(state);
-    //     device.init_capabilities();
-    //     Ok(device)
-    // }
-    // On Windows we have to check which interface can be used
-    // #[cfg(target_os = "windows")]
+    // Linux/macOS: take the first matching interface. hidapi enumerates one
+    // entry per HID interface; the first one is the control interface for
+    // every supported device. Probing every interface (as Windows does) sends
+    // a burst of HID writes per connect attempt, which has been observed to
+    // destabilise the Cloud III S wireless dongle.
+    #[cfg(not(target_os = "windows"))]
+    {
+        let state = states
+            .into_iter()
+            .next()
+            .ok_or(DeviceError::NoDeviceFound())?;
+        println!(
+            "Connecting to {}",
+            state
+                .device_properties
+                .device_name
+                .clone()
+                .unwrap_or("???".to_string())
+        );
+        let entry = DEVICE_REGISTER
+            .iter()
+            .find(|e| {
+                e.vendor_ids.contains(&state.device_properties.vendor_id)
+                    && e.product_ids.contains(&state.device_properties.product_id)
+            })
+            .ok_or(DeviceError::NoDeviceFound())?;
+
+        let mut device = (entry.factory)(state);
+        device.init_capabilities();
+        Ok(device)
+    }
+    // On Windows we have to probe each HID interface to find the one that
+    // accepts control writes.
+    #[cfg(target_os = "windows")]
     {
         let mut device = None;
         let total = states.len();
